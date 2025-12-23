@@ -20,6 +20,7 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['JWT_SECRET_KEY'] = 'super-secret-key-fixe-pour-le-test'
 
 # Autoriser toutes les origines explicitement pour éviter les blocages Vercel
+# Autorise Vercel à parler au Backend
 CORS(app, resources={r"/*": {"origins": "*"}})
 db = SQLAlchemy(app)
 jwt = JWTManager(app)

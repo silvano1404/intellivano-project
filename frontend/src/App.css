@@ -48,12 +48,14 @@ body, html, #root {
 
 .custom-input {
   width: 100%;
-  padding: 18px 20px; /* Champs plus hauts */
+  padding: 18px 20px;
   margin-bottom: 20px;
   border: 1px solid #ddd;
   border-radius: 12px;
-  font-size: 1.1rem; /* Texte plus gros quand on écrit */
-  background-color: #f9f9f9;
+  font-size: 1.1rem;
+  background-color: #ffffff !important; /* Force le fond BLANC */
+  color: #000000 !important; /* Force le texte NOIR */
+  box-shadow: none !important;
 }
 
 .custom-input:focus {
