@@ -1,123 +1,176 @@
-import os
-from datetime import datetime
-from flask import Flask, request, jsonify
-from flask_cors import CORS
-from flask_sqlalchemy import SQLAlchemy
-from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
-from werkzeug.security import generate_password_hash, check_password_hash
-from dotenv import load_dotenv
-from openai import OpenAI
+import { useState, useEffect, useRef } from 'react';
+import axios from 'axios';
+import './App.css'; 
 
-load_dotenv()
+function App() {
+  // --- CONFIGURATION ---
+  // C'est ici qu'on met l'adresse de votre Backend Render
+  // Assurez-vous que c'est bien VOTRE adresse (elle ressemble à ça) :
+  const API_URL = "https://intellivano-backend.onrender.com"; 
 
-app = Flask(__name__)
+  const [token, setToken] = useState(localStorage.getItem('token'));
+  const [isLogin, setIsLogin] = useState(true);
+  
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [username, setUsername] = useState('');
+  
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
+  
+  // États pour l'image (Vision)
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
+  
+  const messagesEndRef = useRef(null);
+  const fileInputRef = useRef(null);
+  
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+  useEffect(scrollToBottom, [messages]);
 
-# Config
-basedir = os.path.abspath(os.path.dirname(__file__))
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'intellivano.db')
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['JWT_SECRET_KEY'] = 'super-secret-key-fixe-pour-le-test'
+  // --- AUTHENTIFICATION ---
+  const handleAuth = async (e) => {
+    e.preventDefault();
+    const endpoint = isLogin ? '/login' : '/register';
+    const payload = isLogin ? { email, password } : { email, password, username };
 
-# IMPORTANT : Autoriser Vercel (CORS)
-CORS(app, resources={r"/*": {"origins": "*"}})
+    try {
+      // On utilise API_URL pour parler à Render
+      const res = await axios.post(`${API_URL}${endpoint}`, payload);
+      
+      if (isLogin) {
+        setToken(res.data.token);
+        localStorage.setItem('token', res.data.token);
+      } else {
+        alert("Compte créé ! Connectez-vous.");
+        setIsLogin(true);
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Erreur : " + (err.response?.data?.msg || "Impossible de joindre le serveur. Vérifiez que le Backend Render est réveillé."));
+    }
+  };
 
-db = SQLAlchemy(app)
-jwt = JWTManager(app)
-client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+  const logout = () => {
+    setToken(null);
+    localStorage.removeItem('token');
+    setMessages([]);
+  };
 
-# --- MODELS ---
-class User(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(80), unique=True, nullable=False)
-    email = db.Column(db.String(120), unique=True, nullable=False)
-    password = db.Column(db.String(255), nullable=False)
-    is_premium = db.Column(db.Boolean, default=False)
+  // --- GESTION IMAGE ---
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setSelectedImage(reader.result);
+        setPreviewUrl(URL.createObjectURL(file));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
-class Conversation(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    user_msg = db.Column(db.Text, nullable=False)
-    ai_response = db.Column(db.Text, nullable=False)
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
-
-# --- CORRECTION DE L'ERREUR "NO SUCH TABLE" ---
-# On crée les tables immédiatement au lancement
-with app.app_context():
-    db.create_all()
-    print("Base de données et tables créées avec succès !")
-
-# --- ROUTES ---
-@app.route('/register', methods=['POST'])
-def register():
-    data = request.get_json()
-    if User.query.filter_by(email=data['email']).first():
-        return jsonify({"msg": "Cet email est déjà utilisé"}), 400
-    hashed_pw = generate_password_hash(data['password'])
-    new_user = User(username=data['username'], email=data['email'], password=hashed_pw)
-    try:
-        db.session.add(new_user)
-        db.session.commit()
-        return jsonify({"msg": "Utilisateur créé !"}), 201
-    except Exception as e:
-        return jsonify({"msg": str(e)}), 500
-
-@app.route('/login', methods=['POST'])
-def login():
-    data = request.get_json()
-    user = User.query.filter_by(email=data['email']).first()
-    if user and check_password_hash(user.password, data['password']):
-        token = create_access_token(identity=str(user.id))
-        return jsonify({"token": token, "username": user.username}), 200
-    return jsonify({"msg": "Erreur login"}), 401
-
-@app.route('/chat', methods=['POST'])
-@jwt_required()
-def chat():
-    current_user_id = get_jwt_identity()
-    user = User.query.get(int(current_user_id))
-    data = request.get_json()
+  // --- ENVOI MESSAGE ---
+  const sendMessage = async () => {
+    if (!input.trim() && !selectedImage) return;
     
-    user_message = data.get('message', '')
-    image_data = data.get('image')
+    // Affichage immédiat (Interface)
+    const userMsgContent = selectedImage 
+      ? (<div><img src={previewUrl} alt="upload" style={{maxWidth:'100px', borderRadius:'10px', marginBottom:'5px'}}/><br/>{input}</div>) 
+      : input;
 
-    if not user_message and not image_data:
-        return jsonify({"msg": "Message vide"}), 400
-
-    content_payload = []
-    if user_message:
-        content_payload.append({"type": "text", "text": user_message})
-    if image_data:
-        content_payload.append({
-            "type": "image_url",
-            "image_url": {"url": image_data}
-        })
-
-    history = Conversation.query.filter_by(user_id=user.id).order_by(Conversation.timestamp.desc()).limit(5).all()
-    messages_payload = [{"role": "system", "content": "Tu es Intellivano."}]
+    const userMsg = { role: 'user', content: userMsgContent };
+    setMessages(prev => [...prev, userMsg]);
     
-    for conv in reversed(history):
-        messages_payload.append({"role": "user", "content": conv.user_msg})
-        messages_payload.append({"role": "assistant", "content": conv.ai_response})
+    setLoading(true);
+    const textToSend = input;
+    const imageToSend = selectedImage;
     
-    messages_payload.append({"role": "user", "content": content_payload})
+    // Reset des champs
+    setInput('');
+    setSelectedImage(null);
+    setPreviewUrl(null);
 
-    try:
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=messages_payload,
-            max_tokens=500
-        )
-        ai_reply = response.choices[0].message.content
-        text_log = f"[IMAGE] {user_message}" if image_data else user_message
-        new_conv = Conversation(user_id=user.id, user_msg=text_log, ai_response=ai_reply)
-        db.session.add(new_conv)
-        db.session.commit()
+    try {
+      // Envoi à Render
+      const res = await axios.post(`${API_URL}/chat`, 
+        { message: textToSend, image: imageToSend }, 
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setMessages(prev => [...prev, { role: 'ai', content: res.data.response }]);
+    } catch (err) {
+      console.error(err);
+      setMessages(prev => [...prev, { role: 'ai', content: "⚠️ Erreur serveur (Le serveur Render dort peut-être ?)" }]);
+    }
+    setLoading(false);
+  };
 
-        return jsonify({"response": ai_reply}), 200
+  // --- AFFICHAGE : LOGIN ---
+  if (!token) {
+    return (
+      <div className="app-wrapper">
+        <div className="login-card">
+          <h2 className="brand-title">Intellivano</h2>
+          <p className="subtitle">{isLogin ? "Bon retour" : "Créer un compte"}</p>
+          <form onSubmit={handleAuth}>
+            {!isLogin && <input className="custom-input" type="text" placeholder="Nom d'utilisateur" onChange={e => setUsername(e.target.value)} required />}
+            <input className="custom-input" type="email" placeholder="Email" onChange={e => setEmail(e.target.value)} required />
+            <input className="custom-input" type="password" placeholder="Mot de passe" onChange={e => setPassword(e.target.value)} required />
+            <button className="btn-main" type="submit">{isLogin ? "Se connecter" : "S'inscrire"}</button>
+          </form>
+          <p className="toggle-link" onClick={() => setIsLogin(!isLogin)}>{isLogin ? "Créer un compte" : "Se connecter"}</p>
+        </div>
+      </div>
+    );
+  }
 
-    except Exception as e:
-        print(f"Erreur: {e}")
-        return jsonify({"error": str(e)}), 500
+  // --- AFFICHAGE : CHAT ---
+  return (
+    <div className="app-wrapper">
+      <div className="chat-interface">
+        <div className="chat-header">
+          <div className="logo-area"><span className="emoji">👁️</span><h2>Intellivano Vision</h2></div>
+          <button onClick={logout} className="btn-logout">Déconnexion</button>
+        </div>
 
-if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+        <div className="chat-container">
+          {messages.length === 0 && <div className="empty-state"><h3>Bonjour ! 👋</h3><p>Envoyez une image ou posez une question.</p></div>}
+          {messages.map((msg, index) => (
+            <div key={index} className={`message ${msg.role === 'user' ? 'user-message' : 'ai-message'}`}>{msg.content}</div>
+          ))}
+          {loading && <div className="message ai-message loading-msg"><em>Intellivano réfléchit...</em></div>}
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* Prévisualisation Image */}
+        {previewUrl && (
+          <div style={{padding:'10px 20px', background:'white', borderTop:'1px solid #eee'}}>
+            <span style={{fontSize:'12px', color:'#666'}}>Image jointe : </span>
+            <img src={previewUrl} alt="preview" style={{height:'50px', borderRadius:'5px', verticalAlign:'middle'}} />
+            <button onClick={()=>{setSelectedImage(null); setPreviewUrl(null)}} style={{marginLeft:'10px', border:'none', background:'transparent', cursor:'pointer', color:'red'}}>❌</button>
+          </div>
+        )}
+
+        {/* Zone de saisie */}
+        <div className="input-area">
+          <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" style={{display:'none'}} />
+          <button onClick={() => fileInputRef.current.click()} style={{background:'#e9ecef', color:'#333', padding:'0 15px', fontSize:'1.2rem'}} title="Joindre une image">📎</button>
+          
+          <input 
+            type="text" 
+            placeholder="Écrivez un message..." 
+            value={input} 
+            onChange={e => setInput(e.target.value)} 
+            onKeyDown={e => e.key === 'Enter' && sendMessage()} 
+          />
+          <button onClick={sendMessage}>Envoyer</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default App;

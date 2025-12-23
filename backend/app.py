@@ -19,13 +19,11 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'in
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['JWT_SECRET_KEY'] = 'super-secret-key-fixe-pour-le-test'
 
-# Autoriser toutes les origines explicitement pour éviter les blocages Vercel
-# Autorise Vercel à parler au Backend
+# Autoriser Vercel (CORS)
 CORS(app, resources={r"/*": {"origins": "*"}})
+
 db = SQLAlchemy(app)
 jwt = JWTManager(app)
-
-# Utilisation de la clé API du fichier .env ou celle en dur si nécessaire
 client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
 
 # --- MODELES ---
@@ -42,6 +40,20 @@ class Conversation(db.Model):
     user_msg = db.Column(db.Text, nullable=False)
     ai_response = db.Column(db.Text, nullable=False)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+
+# --- CORRECTION CRUCIALE POUR RENDER ---
+# On force la création des tables ICI, avant les routes.
+with app.app_context():
+    db.create_all()
+    print("Base de données initialisée avec succès !")
+
+# --- ROUTE D'ACCUEIL (Pour vérifier que le serveur est vivant) ---
+@app.route('/', methods=['GET'])
+def home():
+    return jsonify({
+        "status": "Online",
+        "message": "Le cerveau d'Intellivano fonctionne parfaitement ! 🚀"
+    })
 
 # --- AUTH ---
 @app.route('/register', methods=['POST'])
@@ -76,45 +88,36 @@ def chat():
     data = request.get_json()
     
     user_message = data.get('message', '')
-    image_data = data.get('image') # On récupère l'image en Base64 si elle existe
+    image_data = data.get('image')
 
     if not user_message and not image_data:
         return jsonify({"msg": "Message vide"}), 400
 
-    # Préparation du message pour OpenAI
     content_payload = []
-    
-    # 1. Ajouter le texte
     if user_message:
         content_payload.append({"type": "text", "text": user_message})
-    
-    # 2. Ajouter l'image si présente
     if image_data:
         content_payload.append({
             "type": "image_url",
-            "image_url": {"url": image_data} # image_data contient déjà "data:image/jpeg;base64,..."
+            "image_url": {"url": image_data}
         })
 
-    # Historique (on garde les 5 derniers échanges pour le contexte)
     history = Conversation.query.filter_by(user_id=user.id).order_by(Conversation.timestamp.desc()).limit(5).all()
-    messages_payload = [{"role": "system", "content": "Tu es Intellivano, un assistant IA capable d'analyser des images."}]
+    messages_payload = [{"role": "system", "content": "Tu es Intellivano."}]
     
     for conv in reversed(history):
         messages_payload.append({"role": "user", "content": conv.user_msg})
         messages_payload.append({"role": "assistant", "content": conv.ai_response})
     
-    # Ajout du message actuel (Mixte Texte + Image)
     messages_payload.append({"role": "user", "content": content_payload})
 
     try:
         response = client.chat.completions.create(
-            model="gpt-4o-mini", # Modèle Vision rapide et pas cher
+            model="gpt-4o-mini",
             messages=messages_payload,
             max_tokens=500
         )
         ai_reply = response.choices[0].message.content
-
-        # Sauvegarde (On ne stocke pas l'image en base de données pour ne pas l'alourdir, juste le texte)
         text_log = f"[IMAGE] {user_message}" if image_data else user_message
         new_conv = Conversation(user_id=user.id, user_msg=text_log, ai_response=ai_reply)
         db.session.add(new_conv)
@@ -127,6 +130,4 @@ def chat():
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
-    with app.app_context():
-        db.create_all()
     app.run(debug=True, port=5000)
