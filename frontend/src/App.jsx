@@ -5,7 +5,7 @@ import './App.css';
 function App() {
   // --- CONFIGURATION DE L'ADRESSE DU SERVEUR ---
   // On utilise l'adresse de votre serveur Render
-  const API_URL = "https://intellivano-project.onrender.com"; 
+  const API_URL = "https://intellivano-backend.onrender.com"; // (Ou votre lien Render exact)
 
   const [token, setToken] = useState(localStorage.getItem('token'));
   const [isLogin, setIsLogin] = useState(true);
