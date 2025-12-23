@@ -19,7 +19,8 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'in
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['JWT_SECRET_KEY'] = 'super-secret-key-fixe-pour-le-test'
 
-CORS(app)
+# Autoriser toutes les origines explicitement pour éviter les blocages Vercel
+CORS(app, resources={r"/*": {"origins": "*"}})
 db = SQLAlchemy(app)
 jwt = JWTManager(app)
 
