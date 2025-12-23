@@ -7,24 +7,31 @@ from flask_jwt_extended import JWTManager, create_access_token, jwt_required, ge
 from werkzeug.security import generate_password_hash, check_password_hash
 from dotenv import load_dotenv
 from openai import OpenAI
-import stripe # AJOUT POUR LE PAIEMENT
+import stripe
 
-# Charger les variables
+# Charger les variables locales
 load_dotenv()
 
 app = Flask(__name__)
 
-# --- CONFIGURATION ---
-basedir = os.path.abspath(os.path.dirname(__file__))
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'intellivano.db')
+# --- CONFIGURATION DE LA BASE DE DONNÉES (NEON & RENDER) ---
+# On récupère l'URL de la base de données depuis Render
+database_url = os.getenv('DATABASE_URL')
+
+# Correction nécessaire pour que Python comprenne l'adresse de Neon
+if database_url and database_url.startswith("postgres://"):
+    database_url = database_url.replace("postgres://", "postgresql://", 1)
+
+# Si on est sur Render, on utilise Neon. Sinon on utilise SQLite (sur votre PC).
+app.config['SQLALCHEMY_DATABASE_URI'] = database_url or 'sqlite:///intellivano.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['JWT_SECRET_KEY'] = 'super-secret-key-fixe-pour-le-test'
 
-# --- CONFIGURATION STRIPE (PAIEMENT) ---
-# ATTENTION : Remplacez ceci par votre NOUVELLE clé après l'avoir révoquée sur le site Stripe
-stripe.api_key = "sk_live_................................" # Mettez votre nouvelle clé ici
+# --- CONFIGURATION STRIPE ---
+# On récupère la clé depuis les réglages sécurisés de Render (plus sûr !)
+stripe.api_key = os.getenv('STRIPE_SECRET_KEY')
 
-# Autoriser Vercel (CORS)
+# Autoriser tout le monde (Vital pour Vercel)
 CORS(app, resources={r"/*": {"origins": "*"}})
 
 db = SQLAlchemy(app)
@@ -46,17 +53,17 @@ class Conversation(db.Model):
     ai_response = db.Column(db.Text, nullable=False)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
 
-# --- CORRECTION CRUCIALE POUR RENDER ---
+# --- CRÉATION AUTOMATIQUE DES TABLES ---
 with app.app_context():
     db.create_all()
-    print("Base de données initialisée avec succès !")
+    print(">>> Base de données initialisée avec succès ! <<<")
 
 # --- ROUTE D'ACCUEIL ---
 @app.route('/', methods=['GET'])
 def home():
     return jsonify({
         "status": "Online",
-        "message": "Le cerveau d'Intellivano fonctionne parfaitement ! 🚀"
+        "message": "Le cerveau d'Intellivano fonctionne parfaitement avec Neon ! 🚀"
     })
 
 # --- AUTH ---
@@ -83,18 +90,16 @@ def login():
         return jsonify({
             "token": token, 
             "username": user.username,
-            "is_premium": user.is_premium # On renvoie l'info si il est premium ou pas
+            "is_premium": user.is_premium
         }), 200
     return jsonify({"msg": "Erreur login"}), 401
 
-# --- PAIEMENT STRIPE (NOUVEAU) ---
+# --- PAIEMENT STRIPE ---
 @app.route('/create-checkout-session', methods=['POST'])
 @jwt_required()
 def create_checkout_session():
     current_user_id = get_jwt_identity()
-    
     try:
-        # On crée une session de paiement Stripe
         session = stripe.checkout.Session.create(
             payment_method_types=['card'],
             line_items=[{
@@ -103,13 +108,14 @@ def create_checkout_session():
                     'product_data': {
                         'name': 'Abonnement Intellivano Premium',
                     },
-                    'unit_amount': 999, # Prix en centimes (9.99€)
+                    'unit_amount': 999,
                 },
                 'quantity': 1,
             }],
             mode='payment',
-            success_url='https://votre-site-vercel.app/success', # On changera ça plus tard
-            cancel_url='https://votre-site-vercel.app/cancel',
+            # REMPLACEZ CECI PAR VOTRE VRAI LIEN VERCEL SI BESOIN
+            success_url='https://intellivano-project.vercel.app/success', 
+            cancel_url='https://intellivano-project.vercel.app/cancel',
         )
         return jsonify({"url": session.url}), 200
     except Exception as e:
@@ -126,14 +132,6 @@ def chat():
     user_message = data.get('message', '')
     image_data = data.get('image')
 
-    # --- RESTRICTION GRATUITE ---
-    # Si l'utilisateur n'est pas Premium, on vérifie s'il a dépassé 5 messages
-    if not user.is_premium:
-        count = Conversation.query.filter_by(user_id=user.id).count()
-        # Si vous voulez activer la limite, décommentez les lignes ci-dessous :
-        # if count >= 5:
-        #    return jsonify({"response": "Limite atteinte ! Passez Premium pour continuer."}), 200
-
     if not user_message and not image_data:
         return jsonify({"msg": "Message vide"}), 400
 
@@ -141,10 +139,6 @@ def chat():
     if user_message:
         content_payload.append({"type": "text", "text": user_message})
     if image_data:
-        # Seuls les premiums peuvent envoyer des images ? (Optionnel)
-        # if not user.is_premium:
-        #     return jsonify({"response": "L'analyse d'image est réservée aux membres Premium."}), 200
-        
         content_payload.append({
             "type": "image_url",
             "image_url": {"url": image_data}

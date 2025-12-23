@@ -2,9 +2,9 @@ flask
 flask-cors
 flask-sqlalchemy
 flask-jwt-extended
-psycopg2-binary
 openai
-stripe
 python-dotenv
 werkzeug
 gunicorn
+stripe
+psycopg2-binary
