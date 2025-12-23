@@ -3,6 +3,10 @@ import axios from 'axios';
 import './App.css'; 
 
 function App() {
+  // --- CONFIGURATION DE L'ADRESSE DU SERVEUR ---
+  // On utilise l'adresse de votre serveur Render
+  const API_URL = "https://intellivano-project.onrender.com"; 
+
   const [token, setToken] = useState(localStorage.getItem('token'));
   const [isLogin, setIsLogin] = useState(true);
   
@@ -14,12 +18,12 @@ function App() {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   
-  // Nouveaux états pour l'image
+  // États pour l'image
   const [selectedImage, setSelectedImage] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
   
   const messagesEndRef = useRef(null);
-  const fileInputRef = useRef(null); // Référence pour le bouton caché
+  const fileInputRef = useRef(null);
   
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -33,16 +37,19 @@ function App() {
     const payload = isLogin ? { email, password } : { email, password, username };
 
     try {
-      const res = await axios.post(`http://127.0.0.1:5000${endpoint}`, payload);
+      // UTILISATION DE LA NOUVELLE URL ICI
+      const res = await axios.post(`${API_URL}${endpoint}`, payload);
+      
       if (isLogin) {
         setToken(res.data.token);
         localStorage.setItem('token', res.data.token);
       } else {
-        alert("Compte créé !");
+        alert("Compte créé ! Connectez-vous.");
         setIsLogin(true);
       }
     } catch (err) {
-      alert("Erreur : " + (err.response?.data?.msg || "Erreur connexion"));
+      console.error(err);
+      alert("Erreur : " + (err.response?.data?.msg || "Impossible de joindre le serveur. Vérifiez que le Backend Render est actif."));
     }
   };
 
@@ -52,14 +59,14 @@ function App() {
     setMessages([]);
   };
 
-  // Gestion de l'image
+  // Gestion Image
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
-        setSelectedImage(reader.result); // Base64 complet
-        setPreviewUrl(URL.createObjectURL(file)); // URL pour la prévisualisation
+        setSelectedImage(reader.result);
+        setPreviewUrl(URL.createObjectURL(file));
       };
       reader.readAsDataURL(file);
     }
@@ -68,7 +75,7 @@ function App() {
   const sendMessage = async () => {
     if (!input.trim() && !selectedImage) return;
     
-    // Affichage local immédiat
+    // Affichage local
     const userMsgContent = selectedImage 
       ? (<div><img src={previewUrl} alt="upload" style={{maxWidth:'100px', borderRadius:'10px', marginBottom:'5px'}}/><br/>{input}</div>) 
       : input;
@@ -80,20 +87,20 @@ function App() {
     const textToSend = input;
     const imageToSend = selectedImage;
     
-    // Reset champs
     setInput('');
     setSelectedImage(null);
     setPreviewUrl(null);
 
     try {
-      const res = await axios.post('http://127.0.0.1:5000/chat', 
+      // UTILISATION DE LA NOUVELLE URL ICI AUSSI
+      const res = await axios.post(`${API_URL}/chat`, 
         { message: textToSend, image: imageToSend }, 
         { headers: { Authorization: `Bearer ${token}` } }
       );
       setMessages(prev => [...prev, { role: 'ai', content: res.data.response }]);
     } catch (err) {
       console.error(err);
-      setMessages(prev => [...prev, { role: 'ai', content: "⚠️ Erreur serveur." }]);
+      setMessages(prev => [...prev, { role: 'ai', content: "⚠️ Erreur serveur (Vérifiez Render)." }]);
     }
     setLoading(false);
   };
@@ -129,11 +136,10 @@ function App() {
           {messages.map((msg, index) => (
             <div key={index} className={`message ${msg.role === 'user' ? 'user-message' : 'ai-message'}`}>{msg.content}</div>
           ))}
-          {loading && <div className="message ai-message loading-msg"><em>Analyse en cours...</em></div>}
+          {loading && <div className="message ai-message loading-msg"><em>Intellivano réfléchit...</em></div>}
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Zone de prévisualisation si image sélectionnée */}
         {previewUrl && (
           <div style={{padding:'10px 20px', background:'white', borderTop:'1px solid #eee'}}>
             <span style={{fontSize:'12px', color:'#666'}}>Image jointe : </span>
@@ -143,29 +149,9 @@ function App() {
         )}
 
         <div className="input-area">
-          {/* Bouton Trombone Caché */}
-          <input 
-            type="file" 
-            ref={fileInputRef} 
-            onChange={handleFileChange} 
-            accept="image/*" 
-            style={{display:'none'}} 
-          />
-          <button 
-            onClick={() => fileInputRef.current.click()} 
-            style={{background:'#e9ecef', color:'#333', padding:'0 15px', fontSize:'1.2rem'}}
-            title="Joindre une image"
-          >
-            📎
-          </button>
-
-          <input 
-            type="text" 
-            placeholder="Écrivez un message..." 
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && sendMessage()}
-          />
+          <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" style={{display:'none'}} />
+          <button onClick={() => fileInputRef.current.click()} style={{background:'#e9ecef', color:'#333', padding:'0 15px', fontSize:'1.2rem'}} title="Joindre une image">📎</button>
+          <input type="text" placeholder="Écrivez un message..." value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendMessage()} />
           <button onClick={sendMessage}>Envoyer</button>
         </div>
       </div>
