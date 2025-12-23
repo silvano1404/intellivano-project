@@ -12,190 +12,165 @@ body, html, #root {
   background-color: #f0f2f5;
 }
 
-/* Le conteneur principal qui centre tout */
+/* Le conteneur principal */
 .app-wrapper {
   display: flex;
   justify-content: center;
   align-items: center;
-  height: 100vh; /* Prend 100% de la hauteur de l'ecran */
+  height: 100vh;
   width: 100%;
-  padding: 20px; /* Petit espace sur les bords */
+  padding: 20px;
 }
 
-/* --- PARTIE LOGIN --- */
+/* --- PARTIE LOGIN (AGRANDIE) --- */
 .login-card {
   background: white;
-  padding: 40px;
-  border-radius: 20px;
-  box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+  padding: 60px 40px; /* Plus d'espace intérieur */
+  border-radius: 25px;
+  box-shadow: 0 15px 35px rgba(0,0,0,0.1);
   width: 100%;
-  max-width: 400px; /* Ne devient jamais trop large */
+  max-width: 600px; /* ÉLARGIE : Passe de 400px à 600px */
   text-align: center;
+  transition: transform 0.3s ease;
 }
 
 .brand-title {
   color: #6a11cb;
-  margin-bottom: 10px;
+  margin-bottom: 15px;
+  font-size: 2.5rem; /* Titre plus gros */
 }
 
 .subtitle {
   color: #666;
-  margin-bottom: 30px;
+  margin-bottom: 40px;
+  font-size: 1.2rem; /* Sous-titre plus lisible */
 }
 
 .custom-input {
   width: 100%;
-  padding: 12px 15px;
-  margin-bottom: 15px;
+  padding: 18px 20px; /* Champs plus hauts */
+  margin-bottom: 20px;
   border: 1px solid #ddd;
-  border-radius: 8px;
-  font-size: 16px;
-  transition: border 0.3s;
+  border-radius: 12px;
+  font-size: 1.1rem; /* Texte plus gros quand on écrit */
+  background-color: #f9f9f9;
 }
 
 .custom-input:focus {
   border-color: #6a11cb;
   outline: none;
+  background-color: white;
+  box-shadow: 0 0 0 4px rgba(106, 17, 203, 0.1);
 }
 
 .btn-main {
   width: 100%;
-  padding: 12px;
+  padding: 18px; /* Bouton plus gros */
   background: linear-gradient(45deg, #6a11cb, #2575fc);
   color: white;
   border: none;
-  border-radius: 8px;
-  font-size: 16px;
+  border-radius: 12px;
+  font-size: 1.2rem; /* Texte du bouton plus gros */
   font-weight: bold;
   cursor: pointer;
-  transition: opacity 0.3s;
+  margin-top: 10px;
+  transition: opacity 0.3s, transform 0.2s;
 }
 
 .btn-main:hover {
-  opacity: 0.9;
+  opacity: 0.95;
+  transform: translateY(-2px);
 }
 
 .toggle-link {
-  margin-top: 20px;
+  margin-top: 25px;
   color: #2575fc;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 1.1rem;
+  text-decoration: underline;
 }
 
-/* --- PARTIE CHAT (ADAPTATIVE) --- */
+/* --- PARTIE CHAT --- */
 .chat-interface {
   width: 100%;
-  max-width: 1200px; /* Largeur max sur grand écran */
-  height: 90vh; /* 90% de la hauteur de l'écran */
+  max-width: 1400px; /* Chat très large sur PC */
+  height: 90vh; 
   background: white;
-  border-radius: 20px;
-  box-shadow: 0 5px 20px rgba(0,0,0,0.15);
+  border-radius: 25px;
+  box-shadow: 0 5px 30px rgba(0,0,0,0.15);
   display: flex;
   flex-direction: column;
-  overflow: hidden; /* Important pour les coins arrondis */
+  overflow: hidden; 
 }
 
 /* En-tête */
 .chat-header {
   background: linear-gradient(90deg, #6a11cb 0%, #2575fc 100%);
   color: white;
-  padding: 15px 25px;
+  padding: 20px 30px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  flex-shrink: 0; /* Ne rétrécit pas */
-}
-
-.logo-area {
-  display: flex;
-  align-items: center;
-  gap: 10px;
 }
 
 .logo-area h2 {
   margin: 0;
-  font-size: 1.2rem;
+  font-size: 1.5rem;
 }
 
-.btn-logout {
-  background: rgba(255,255,255,0.2);
-  border: none;
-  color: white;
-  padding: 8px 16px;
-  border-radius: 20px;
-  cursor: pointer;
-  font-size: 0.9rem;
-}
-
-/* Zone des messages (Le coeur du problème d'adaptation) */
+/* Zone messages */
 .chat-container {
-  flex: 1; /* Prend tout l'espace restant disponible */
-  overflow-y: auto; /* Permet le scroll */
-  padding: 20px;
-  background-color: #f9f9f9;
+  flex: 1;
+  overflow-y: auto;
+  padding: 30px;
+  background-color: #f4f7f6;
   display: flex;
   flex-direction: column;
-  gap: 15px;
+  gap: 20px;
 }
 
-.empty-state {
-  text-align: center;
-  margin-top: auto;
-  margin-bottom: auto;
-  color: #aaa;
-}
-
-/* Bulles */
+/* Bulles plus grandes */
 .message {
-  max-width: 75%;
-  padding: 12px 18px;
-  border-radius: 18px;
-  line-height: 1.5;
-  font-size: 1rem;
-  word-wrap: break-word;
+  max-width: 70%;
+  padding: 15px 25px;
+  border-radius: 20px;
+  line-height: 1.6;
+  font-size: 1.1rem; /* Texte des messages plus lisible */
 }
 
 .user-message {
   background-color: #2575fc;
   color: white;
   align-self: flex-end;
-  border-bottom-right-radius: 2px;
+  border-bottom-right-radius: 4px;
 }
 
 .ai-message {
-  background-color: #fff;
+  background-color: #ffffff;
   border: 1px solid #e0e0e0;
   color: #333;
   align-self: flex-start;
-  border-bottom-left-radius: 2px;
+  border-bottom-left-radius: 4px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.05);
 }
 
-.loading-msg {
-  font-style: italic;
-  color: #888;
-}
-
-/* Zone de saisie (Input) */
+/* Zone input */
 .input-area {
-  padding: 20px;
+  padding: 25px;
   background: white;
   border-top: 1px solid #eee;
   display: flex;
-  gap: 10px;
-  flex-shrink: 0;
+  gap: 15px;
+  align-items: center;
 }
 
 .input-area input {
   flex: 1;
-  padding: 15px 20px;
-  border-radius: 30px;
+  padding: 18px 25px;
+  border-radius: 50px;
   border: 1px solid #ddd;
   outline: none;
-  font-size: 1rem;
-}
-
-.input-area input:focus {
-  border-color: #2575fc;
+  font-size: 1.1rem;
 }
 
 .input-area button {
@@ -203,30 +178,27 @@ body, html, #root {
   color: white;
   border: none;
   border-radius: 50px;
-  padding: 0 25px;
+  padding: 15px 35px;
   font-weight: bold;
+  font-size: 1.1rem;
   cursor: pointer;
-  transition: transform 0.2s;
 }
 
-.input-area button:hover {
-  transform: scale(1.05);
-}
-
-/* ADAPTATION MOBILE (Responsive) */
+/* MOBILE (Responsive) */
 @media (max-width: 768px) {
   .app-wrapper {
-    padding: 0; /* Pas de marge sur mobile */
-    height: 100vh;
+    padding: 0;
   }
-  
-  .chat-interface {
-    height: 100%;
-    border-radius: 0; /* Plein écran sur mobile */
+  .login-card {
+    border-radius: 0;
+    height: 100vh; /* Plein écran sur mobile */
     max-width: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
   }
-
-  .message {
-    max-width: 85%; /* Bulles plus larges sur mobile */
+  .chat-interface {
+    height: 100vh;
+    border-radius: 0;
   }
 }
