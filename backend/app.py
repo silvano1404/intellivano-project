@@ -28,11 +28,18 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['JWT_SECRET_KEY'] = 'super-secret-key-fixe-pour-le-test'
 
 # --- CONFIGURATION STRIPE ---
-# On récupère la clé depuis les réglages sécurisés de Render (plus sûr !)
 stripe.api_key = os.getenv('STRIPE_SECRET_KEY')
 
-# Autoriser tout le monde (Vital pour Vercel)
-CORS(app, resources={r"/*": {"origins": "*"}})
+# --- CONFIGURATION CORS (C'est ici la correction importante pour Vercel) ---
+CORS(app, resources={r"/*": {
+    "origins": [
+        "https://intellivano-project.vercel.app",  # Ton site Vercel
+        "http://localhost:5173",                   # Tes tests locaux
+        "*"                                        # Sécurité par défaut pour éviter le blocage
+    ],
+    "methods": ["GET", "POST", "OPTIONS"],
+    "allow_headers": ["Content-Type", "Authorization"]
+}})
 
 db = SQLAlchemy(app)
 jwt = JWTManager(app)
@@ -88,7 +95,7 @@ def login():
     if user and check_password_hash(user.password, data['password']):
         token = create_access_token(identity=str(user.id))
         return jsonify({
-            "token": token, 
+            "token": token,
             "username": user.username,
             "is_premium": user.is_premium
         }), 200
@@ -113,8 +120,7 @@ def create_checkout_session():
                 'quantity': 1,
             }],
             mode='payment',
-            # REMPLACEZ CECI PAR VOTRE VRAI LIEN VERCEL SI BESOIN
-            success_url='https://intellivano-project.vercel.app/success', 
+            success_url='https://intellivano-project.vercel.app/success',
             cancel_url='https://intellivano-project.vercel.app/cancel',
         )
         return jsonify({"url": session.url}), 200
@@ -128,7 +134,7 @@ def chat():
     current_user_id = get_jwt_identity()
     user = User.query.get(int(current_user_id))
     data = request.get_json()
-    
+
     user_message = data.get('message', '')
     image_data = data.get('image')
 
@@ -146,11 +152,11 @@ def chat():
 
     history = Conversation.query.filter_by(user_id=user.id).order_by(Conversation.timestamp.desc()).limit(5).all()
     messages_payload = [{"role": "system", "content": "Tu es Intellivano."}]
-    
+
     for conv in reversed(history):
         messages_payload.append({"role": "user", "content": conv.user_msg})
         messages_payload.append({"role": "assistant", "content": conv.ai_response})
-    
+
     messages_payload.append({"role": "user", "content": content_payload})
 
     try:
