@@ -14,15 +14,12 @@ load_dotenv()
 
 app = Flask(__name__)
 
-# --- CONFIGURATION DE LA BASE DE DONNÉES (NEON & RENDER) ---
-# On récupère l'URL de la base de données depuis Render
+# --- CONFIGURATION DE LA BASE DE DONNÉES ---
 database_url = os.getenv('DATABASE_URL')
-
-# Correction nécessaire pour que Python comprenne l'adresse de Neon
+# Correction pour Neon/Postgres
 if database_url and database_url.startswith("postgres://"):
     database_url = database_url.replace("postgres://", "postgresql://", 1)
 
-# Si on est sur Render, on utilise Neon. Sinon on utilise SQLite (sur votre PC).
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url or 'sqlite:///intellivano.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['JWT_SECRET_KEY'] = 'super-secret-key-fixe-pour-le-test'
@@ -30,12 +27,13 @@ app.config['JWT_SECRET_KEY'] = 'super-secret-key-fixe-pour-le-test'
 # --- CONFIGURATION STRIPE ---
 stripe.api_key = os.getenv('STRIPE_SECRET_KEY')
 
-# --- CONFIGURATION CORS (C'est ici la correction importante pour Vercel) ---
+# --- CONFIGURATION CORS (LA CORRECTION EST ICI) ---
+# On autorise explicitement votre site Vercel
 CORS(app, resources={r"/*": {
     "origins": [
-        "https://intellivano-project.vercel.app",  # Ton site Vercel
-        "http://localhost:5173",                   # Tes tests locaux
-        "*"                                        # Sécurité par défaut pour éviter le blocage
+        "https://intellivano-project.vercel.app",  # Votre site en ligne
+        "http://localhost:5173",                   # Vos tests sur PC
+        "*"                                        # Sécurité par défaut
     ],
     "methods": ["GET", "POST", "OPTIONS"],
     "allow_headers": ["Content-Type", "Authorization"]
@@ -60,31 +58,26 @@ class Conversation(db.Model):
     ai_response = db.Column(db.Text, nullable=False)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
 
-# --- CRÉATION AUTOMATIQUE DES TABLES ---
+# --- CRÉATION TABLES ---
 with app.app_context():
     db.create_all()
-    print(">>> Base de données initialisée avec succès ! <<<")
 
-# --- ROUTE D'ACCUEIL ---
+# --- ROUTES ---
 @app.route('/', methods=['GET'])
 def home():
-    return jsonify({
-        "status": "Online",
-        "message": "Le cerveau d'Intellivano fonctionne parfaitement avec Neon ! 🚀"
-    })
+    return jsonify({"status": "Online", "msg": "Backend connecté !"})
 
-# --- AUTH ---
 @app.route('/register', methods=['POST'])
 def register():
     data = request.get_json()
     if User.query.filter_by(email=data['email']).first():
-        return jsonify({"msg": "Cet email est déjà utilisé"}), 400
+        return jsonify({"msg": "Email déjà utilisé"}), 400
     hashed_pw = generate_password_hash(data['password'])
     new_user = User(username=data['username'], email=data['email'], password=hashed_pw)
     try:
         db.session.add(new_user)
         db.session.commit()
-        return jsonify({"msg": "Utilisateur créé !"}), 201
+        return jsonify({"msg": "Compte créé !"}), 201
     except Exception as e:
         return jsonify({"msg": str(e)}), 500
 
@@ -94,85 +87,28 @@ def login():
     user = User.query.filter_by(email=data['email']).first()
     if user and check_password_hash(user.password, data['password']):
         token = create_access_token(identity=str(user.id))
-        return jsonify({
-            "token": token,
-            "username": user.username,
-            "is_premium": user.is_premium
-        }), 200
-    return jsonify({"msg": "Erreur login"}), 401
+        return jsonify({"token": token, "username": user.username}), 200
+    return jsonify({"msg": "Identifiants incorrects"}), 401
 
-# --- PAIEMENT STRIPE ---
-@app.route('/create-checkout-session', methods=['POST'])
-@jwt_required()
-def create_checkout_session():
-    current_user_id = get_jwt_identity()
-    try:
-        session = stripe.checkout.Session.create(
-            payment_method_types=['card'],
-            line_items=[{
-                'price_data': {
-                    'currency': 'eur',
-                    'product_data': {
-                        'name': 'Abonnement Intellivano Premium',
-                    },
-                    'unit_amount': 999,
-                },
-                'quantity': 1,
-            }],
-            mode='payment',
-            success_url='https://intellivano-project.vercel.app/success',
-            cancel_url='https://intellivano-project.vercel.app/cancel',
-        )
-        return jsonify({"url": session.url}), 200
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-# --- CHAT & VISION ---
 @app.route('/chat', methods=['POST'])
 @jwt_required()
 def chat():
     current_user_id = get_jwt_identity()
     user = User.query.get(int(current_user_id))
     data = request.get_json()
-
     user_message = data.get('message', '')
-    image_data = data.get('image')
-
-    if not user_message and not image_data:
-        return jsonify({"msg": "Message vide"}), 400
-
-    content_payload = []
-    if user_message:
-        content_payload.append({"type": "text", "text": user_message})
-    if image_data:
-        content_payload.append({
-            "type": "image_url",
-            "image_url": {"url": image_data}
-        })
-
-    history = Conversation.query.filter_by(user_id=user.id).order_by(Conversation.timestamp.desc()).limit(5).all()
-    messages_payload = [{"role": "system", "content": "Tu es Intellivano."}]
-
-    for conv in reversed(history):
-        messages_payload.append({"role": "user", "content": conv.user_msg})
-        messages_payload.append({"role": "assistant", "content": conv.ai_response})
-
-    messages_payload.append({"role": "user", "content": content_payload})
+    
+    # Historique simplifié pour éviter les erreurs
+    messages_payload = [{"role": "system", "content": "Tu es une IA utile."}]
+    messages_payload.append({"role": "user", "content": user_message})
 
     try:
         response = client.chat.completions.create(
             model="gpt-4o-mini",
-            messages=messages_payload,
-            max_tokens=500
+            messages=messages_payload
         )
         ai_reply = response.choices[0].message.content
-        text_log = f"[IMAGE] {user_message}" if image_data else user_message
-        new_conv = Conversation(user_id=user.id, user_msg=text_log, ai_response=ai_reply)
-        db.session.add(new_conv)
-        db.session.commit()
-
         return jsonify({"response": ai_reply}), 200
-
     except Exception as e:
         print(f"Erreur: {e}")
         return jsonify({"error": str(e)}), 500
